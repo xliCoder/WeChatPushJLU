@@ -1,0 +1,31 @@
+name: JLU AI Monitor (PushPlus + Topic)
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 0点（北京时间早上8点）
+  workflow_dispatch:      # 允许手动执行
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build and Run JLU Monitor
+        env:
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "=== 开始编译项目 ==="
+          mvn -B clean compile
+          echo "=== 运行主程序 ==="
+          mvn -B exec:java
