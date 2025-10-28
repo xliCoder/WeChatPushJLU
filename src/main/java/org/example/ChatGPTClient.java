@@ -15,54 +15,54 @@ import java.util.Map;
 public class ChatGPTClient {
 
     public static String summarize(String content) {
-        String apiKey = System.getenv("OPENAI_API_KEY");
+        String apiKey = System.getenv("ZHIPUAI_API_KEY");
         if (apiKey == null || apiKey.isEmpty()) {
-            return "⚠️ 未配置 OPENAI_API_KEY。";
+            return "⚠️ 未配置 ZHIPUAI_API_KEY。";
         }
 
         try (CloseableHttpClient client = HttpClients.createDefault()) {
-            HttpPost post = new HttpPost("https://api.openai.com/v1/chat/completions");
+            HttpPost post = new HttpPost("https://open.bigmodel.cn/api/paas/v4/chat/completions");
             post.setHeader("Authorization", "Bearer " + apiKey);
             post.setHeader("Content-Type", "application/json");
 
-            // 用 Jackson 构造 JSON body（避免字符串转义问题）
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", "gpt-3.5-turbo");
-            requestBody.put("messages", List.of(
-                    Map.of("role", "system", "content", "你是一个简明的网页摘要生成助手，请用中文简要说明网页更新要点。"),
+            // 构造 JSON 请求体
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", "glm-4.6");
+            body.put("temperature", 0.4);
+            body.put("max_tokens", 2048);
+            body.put("stream", false);
+            body.put("messages", List.of(
+                    Map.of("role", "system", "content", "你是一个网页摘要助手，请用简洁中文总结网站更新的主要内容。"),
                     Map.of("role", "user", "content", content)
             ));
 
             ObjectMapper mapper = new ObjectMapper();
-            String json = mapper.writeValueAsString(requestBody);
-
+            String json = mapper.writeValueAsString(body);
             post.setEntity(new StringEntity(json, ContentType.APPLICATION_JSON));
 
             var resp = client.execute(post);
-            String body = EntityUtils.toString(resp.getEntity());
+            String respBody = EntityUtils.toString(resp.getEntity());
             int code = resp.getCode();
 
             if (code != 200) {
-                System.out.println("Error:  OpenAI 请求失败: " + body);
-                return "⚠️ OpenAI 请求失败：" + code;
+                System.out.println("Error: 智谱AI 请求失败: " + respBody);
+                return "⚠️ 智谱AI 请求失败：" + code;
             }
 
-            // 提取 message.content
-            int idx = body.indexOf("\"content\":\"");
+            // 简单提取返回文本
+            int idx = respBody.indexOf("\"content\":\"");
             if (idx > 0) {
-                String sub = body.substring(idx + 11);
+                String sub = respBody.substring(idx + 11);
                 return sub.split("\"")[0]
                         .replace("\\n", "\n")
                         .replace("\\\"", "\"");
             } else {
-                return "⚠️ 未能解析返回内容：" + body;
+                return "⚠️ 未能解析智谱AI返回内容：" + respBody;
             }
 
         } catch (Exception e) {
-            System.out.println("[ERROR] OpenAI 调用异常：" + e.getMessage());
-            return "⚠️ OpenAI 调用异常：" + e.getClass().getSimpleName();
+            System.out.println("[ERROR] 智谱AI 调用异常：" + e.getMessage());
+            return "⚠️ 智谱AI 调用异常：" + e.getClass().getSimpleName();
         }
     }
 }
-
-
