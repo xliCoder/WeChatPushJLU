@@ -27,7 +27,7 @@ public class ChatGPTClient {
 
             // 构造 JSON 请求体
             Map<String, Object> body = new HashMap<>();
-            body.put("model", "glm-4.6");
+            body.put("model", "GLM-4-Flash-250414");
             body.put("temperature", 0.4);
             body.put("max_tokens", 2048);
             body.put("stream", false);
