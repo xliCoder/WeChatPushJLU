@@ -1,77 +1,102 @@
 package org.example;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.File;
-import java.io.FileWriter;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.Iterator;
+import java.util.*;
 
 public class JluMonitor {
 
-    private static final String API_URL = "https://jlu.oapush.com/api/news?page=1";
+    private static final String LIST_URL = "https://jlu.oapush.com/"; // 或具体公告页
+    private static final String HASH_FILE = "last_hash.txt";
+    private static final String SEEN_FILE = "seen_links.txt";
 
-    public static void main(String[] args) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        HttpClient client = HttpClient.newHttpClient();
+    public static void main(String[] args) {
+        try {
+            Document doc = Jsoup.connect(LIST_URL)
+                    .userAgent("Mozilla/5.0 (jlu-monitor)")
+                    .timeout(10000)
+                    .get();
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(API_URL))
-                .header("User-Agent", "Mozilla/5.0 (jlu-monitor)")
-                .GET()
-                .build();
+            // 尝试多种可能的选择器
+            Elements elems = doc.select("ul.news-list li a, .news-list a, li.notice-item a");
+            List<NewsItem> items = new ArrayList<>();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) {
-            System.out.println("[ERROR] 请求失败，HTTP状态码：" + response.statusCode());
-            return;
-        }
+            for (Element a : elems) {
+                String title = a.text().trim();
+                String href = a.absUrl("href");
+                if (title.isEmpty() || href.isEmpty()) continue;
 
-        // 解析 JSON 返回
-        String body = response.body();
-        JsonNode data = mapper.readTree(body).get("data");
-        StringBuilder concat = new StringBuilder();
+                // 尝试找到日期
+                String date = "";
+                Element parent = a.parent();
+                if (parent != null) {
+                    Element dateElem = parent.selectFirst("span.date, time, .date");
+                    if (dateElem != null) date = dateElem.text().trim();
+                }
 
-        if (data == null) {
-            System.out.println("[WARN] 没有找到 data 字段，接口结构可能不同");
-            return;
-        }
-
-        Iterator<JsonNode> it = data.elements();
-        while (it.hasNext()) {
-            JsonNode node = it.next();
-            String title = node.get("title").asText();
-            String date = node.has("publishTime") ? node.get("publishTime").asText() : "";
-            concat.append(title).append(date);
-        }
-
-        String newHash = sha256(concat.toString());
-        File hashFile = new File("last_hash.txt");
-        String oldHash = hashFile.exists()
-                ? new String(java.nio.file.Files.readAllBytes(hashFile.toPath()))
-                : "";
-
-        if (!newHash.equals(oldHash)) {
-            System.out.println("[INFO] 检测到实质更新，调用智谱AI生成摘要...");
-            String summary = ChatGPTClient.summarize(body);
-            PushPlusNotifier.send("吉林大学通知更新", summary);
-            try (FileWriter fw = new FileWriter(hashFile)) {
-                fw.write(newHash);
+                items.add(new NewsItem(title, href, date));
             }
-        } else {
-            System.out.println("[INFO] 暂无新公告。");
+
+            // 按链接排序、去重
+            LinkedHashMap<String, NewsItem> map = new LinkedHashMap<>();
+            for (NewsItem it : items) {
+                if (!map.containsKey(it.href())) {
+                    map.put(it.href(), it);
+                }
+            }
+            List<NewsItem> cleanList = new ArrayList<>(map.values());
+
+            // 构建内容串用于哈希
+            StringBuilder sb = new StringBuilder();
+            for (NewsItem it : cleanList) {
+                sb.append(it.title()).append("|").append(it.href()).append("|").append(it.date()).append("\n");
+            }
+
+            String currentHash = sha256(sb.toString());
+            String oldHash = readFile(HASH_FILE);
+
+            if (!currentHash.equals(oldHash)) {
+                System.out.println("[INFO] 检测到可能更新，处理...");
+                String summary = ChatGPTClient.summarize(sb.toString());
+                PushPlusNotifier.send("吉林大学通知更新", summary);
+                writeFile(HASH_FILE, currentHash);
+            } else {
+                System.out.println("[INFO] 暂无新公告。");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
     private static String sha256(String s) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(s.getBytes());
-        StringBuilder hex = new StringBuilder();
-        for (byte b : hash) hex.append(String.format("%02x", b));
-        return hex.toString();
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] d = md.digest(s.getBytes(StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : d) sb.append(String.format("%02x", b));
+        return sb.toString();
     }
+
+    private static String readFile(String path) {
+        try {
+            return new String(java.nio.file.Files.readAllBytes(new File(path).toPath()), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static void writeFile(String path, String content) {
+        try (FileWriter fw = new FileWriter(path)) {
+            fw.write(content);
+        } catch (IOException ignored) {}
+    }
+
+    record NewsItem(String title, String href, String date) {}
 }
+
