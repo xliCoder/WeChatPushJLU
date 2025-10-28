@@ -1,4 +1,4 @@
-name: JLU Monitor (08:00 & 18:00 Beijing Time)
+name: JLU Monitor (智谱AI + PushPlus)
 
 on:
   schedule:
@@ -22,12 +22,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build and Run
+      - name: Verify Secrets
+        run: |
+          echo "Checking environment variables..."
+          if [ -z "${{ secrets.ZHIPUAI_API_KEY }}" ]; then
+            echo "::error::❌ ZHIPUAI_API_KEY 未配置，请到 Settings → Secrets and variables → Actions 添加。"
+            exit 1
+          fi
+          if [ -z "${{ secrets.PUSHPLUS_TOKEN }}" ]; then
+            echo "::error::❌ PUSHPLUS_TOKEN 未配置。"
+            exit 1
+          fi
+          echo "✅ 环境变量已检测到。"
+
+      - name: Build and Run (with Zhipu AI)
         env:
+          ZHIPUAI_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          echo "🚀 Running JLU Monitor with Zhipu AI..."
           mvn -B clean compile
           mvn -B exec:java
+
 
