@@ -6,7 +6,6 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- ✅ 包名改成 org.example -->
     <groupId>org.example</groupId>
     <artifactId>jlu-ai-monitor</artifactId>
     <version>1.0-SNAPSHOT</version>
@@ -18,67 +17,45 @@
     </properties>
 
     <dependencies>
-        <!-- Apache HttpClient 5 (Classic 版本) -->
+        <!-- ✅ Apache HttpClient 5 -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
-            <version>5.3</version> <!-- 建议用5.3或以上 -->
+            <version>5.3</version>
         </dependency>
 
-        <!-- HttpCore 5（HttpClient底层） -->
+        <!-- ✅ HttpCore 5（HttpClient底层依赖） -->
         <dependency>
             <groupId>org.apache.httpcomponents.core5</groupId>
             <artifactId>httpcore5</artifactId>
             <version>5.3</version>
         </dependency>
 
-        <!-- Fluent API（方便未来加重试/代理） -->
-        <dependency>
-            <groupId>org.apache.httpcomponents.client5</groupId>
-            <artifactId>httpclient5-fluent</artifactId>
-            <version>5.3</version>
-        </dependency>
-
+        <!-- ✅ Jsoup HTML 解析 -->
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>1.17.2</version>
         </dependency>
 
-
+        <!-- ✅ Jackson JSON 解析 -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.16.0</version>
         </dependency>
 
+        <!-- ✅ 日志（slf4j-simple） -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>2.0.12</version>
         </dependency>
-
-
-
-
-        <!-- Jackson，用于解析 OpenAI 返回的 JSON -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.16.0</version>
-        </dependency>
-
-        <!-- 日志输出（可选） -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>2.0.9</version>
-        </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!-- Maven 编译插件 -->
+            <!-- ✅ 编译插件 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -88,16 +65,17 @@
                 </configuration>
             </plugin>
 
-            <!-- ✅ exec-maven-plugin 主类配置修改为 org.example.JluMonitor -->
+            <!-- ✅ 执行主类 -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>org.example.JluMonitor</mainClass>
+                    <mainClass>org.example.JluDailyPush</mainClass>
                 </configuration>
             </plugin>
         </plugins>
     </build>
 
 </project>
+
