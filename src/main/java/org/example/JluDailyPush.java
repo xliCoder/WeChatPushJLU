@@ -78,26 +78,100 @@ public class JluDailyPush {
     }
 
     private static List<Item> extractItems(Document doc) {
+        // 1) 先找到“今日通知”这个标题所在的节点（支持 h1/h2/h3 或普通 div 文本）
+        Element titleNode = doc.selectFirst("h1:matchesOwn(今日通知), h2:matchesOwn(今日通知), h3:matchesOwn(今日通知)");
+        if (titleNode == null) {
+            // 兜底：寻找任何含有“今日通知”纯文本的元素
+            titleNode = doc.select("*:matchesOwn(^\\s*今日通知\\s*$)").first();
+        }
+
+        if (titleNode == null) {
+            System.out.println("[WARN] 页面中未找到“今日通知”标题，尝试全局提取但排除侧栏。");
+            return extractGloballyButExcludeSide(doc);
+        }
+
+        System.out.println("[INFO] 找到“今日通知”标题节点: <" + titleNode.tagName() + "> " + titleNode.text());
+
+        // 2) 找标题所在的“板块容器”：通常是标题的父级或下一个兄弟容器
+        Element section = titleNode.parent();
+        // 如果父级很杂，优先用“标题后面的同级兄弟容器”作为板块容器
+        Element sibling = titleNode.nextElementSibling();
+        if (sibling != null && sibling.select("a").size() >= 1) {
+            section = sibling;
+        }
+
+        // 3) 在这个板块容器下收集所有可能的条目链接
+        //    只允许 /detail 或 ?id= 形态，且排除明显的侧边栏/导航容器
+        Set<String> banAncestors = Set.of("nav", "aside");
+        String[] banClasses = {"sidebar", "side", "left", "menu", "nav", "sider", "drawer"};
+
         LinkedHashMap<String, Item> map = new LinkedHashMap<>();
-        for (String sel : CANDIDATE_SELECTORS) {
-            var list = doc.select(sel);
-            if (!list.isEmpty()) {
-                System.out.println("[INFO] 选择器命中: " + sel + " -> " + list.size() + " 条");
-            }
-            for (Element a : list) {
-                String href = a.absUrl("href");
-                String title = a.text().replaceAll("\\s+", " ").trim();
-                if (href.isBlank() || title.isBlank() || title.length() < 4) continue;
-                if (title.contains("更多") || title.contains("查看") ||
-                        title.matches("^[\\p{Punct}\\d\\s]+$")) continue;
-                map.putIfAbsent(href, new Item(title, href));
-            }
+        for (Element a : section.select("a[href]")) {
+            // 祖先黑名单（标签）
+            boolean inBannedTag = a.parents().stream().anyMatch(p -> banAncestors.contains(p.tagName()));
+            if (inBannedTag) continue;
+
+            // 祖先黑名单（class 名字里包含 sidebar/left/menu 等）
+            boolean inBannedClass = a.parents().stream().anyMatch(p -> {
+                String cls = p.className().toLowerCase();
+                for (String bad : banClasses) if (cls.contains(bad)) return true;
+                return false;
+            });
+            if (inBannedClass) continue;
+
+            String href = a.absUrl("href");
+            String title = a.text().replaceAll("\\s+", " ").trim();
+
+            // URL 规则：只保留详情类链接，避免工具/站外
+            if (!(href.contains("/detail") || href.contains("?id="))) continue;
+
+            if (title.isBlank() || title.length() < 4) continue;
+            if (title.contains("更多") || title.contains("查看") ||
+                    title.matches("^[\\p{Punct}\\d\\s]+$")) continue;
+
+            map.putIfAbsent(href, new Item(title, href));
         }
+
         if (map.isEmpty()) {
-            System.out.println("[WARN] 所有候选选择器均未命中内容。");
+            System.out.println("[WARN] “今日通知”板块未提取到条目，退回到全局提取但排除侧栏。");
+            return extractGloballyButExcludeSide(doc);
         }
+
+        System.out.println("[INFO] “今日通知”板块提取到条目数: " + map.size());
         return new ArrayList<>(map.values());
     }
+
+    /** 兜底策略：全局找，但严格排除侧边栏容器，并要求链接像详情页 */
+    private static List<Item> extractGloballyButExcludeSide(Document doc) {
+        Set<String> banAncestors = Set.of("nav", "aside");
+        String[] banClasses = {"sidebar", "side", "left", "menu", "nav", "sider", "drawer"};
+
+        LinkedHashMap<String, Item> map = new LinkedHashMap<>();
+        for (Element a : doc.select("a[href]")) {
+            boolean inBannedTag = a.parents().stream().anyMatch(p -> banAncestors.contains(p.tagName()));
+            if (inBannedTag) continue;
+
+            boolean inBannedClass = a.parents().stream().anyMatch(p -> {
+                String cls = p.className().toLowerCase();
+                for (String bad : banClasses) if (cls.contains(bad)) return true;
+                return false;
+            });
+            if (inBannedClass) continue;
+
+            String href = a.absUrl("href");
+            String title = a.text().replaceAll("\\s+", " ").trim();
+
+            if (!(href.contains("/detail") || href.contains("?id="))) continue;
+            if (title.isBlank() || title.length() < 4) continue;
+            if (title.contains("更多") || title.contains("查看") ||
+                    title.matches("^[\\p{Punct}\\d\\s]+$")) continue;
+
+            map.putIfAbsent(href, new Item(title, href));
+        }
+        System.out.println("[INFO] 全局兜底提取条目数: " + map.size());
+        return new ArrayList<>(map.values());
+    }
+
 
     static class Item {
         final String title;
