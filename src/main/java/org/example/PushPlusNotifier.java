@@ -1,42 +1,42 @@
+// src/main/java/org/example/PushPlusNotifier.java
 package org.example;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.entity.EntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 
-public class PushPlusNotifier {
-    private static final String TOKEN = System.getenv("PUSHPLUS_TOKEN");
-    private static final String TOPIC = System.getenv("PUSHPLUS_TOPIC");
+import java.util.HashMap;
+import java.util.Map;
 
-    public static void send(String title, String content) throws Exception {
-        if (TOKEN == null || TOKEN.isEmpty()) {
+public class PushPlusNotifier {
+    public static void send(String title, String content) {
+        String token = System.getenv("PUSHPLUS_TOKEN");
+        String topic = System.getenv("PUSHPLUS_TOPIC"); // 可选
+        if (token == null || token.isEmpty()) {
             System.out.println("[WARN] 未配置 PUSHPLUS_TOKEN，跳过推送。");
             return;
         }
-
         try (CloseableHttpClient client = HttpClients.createDefault()) {
-            HttpPost post = new HttpPost("https://www.pushplus.plus/send/");
-            String json = "{"
-                    + "\"token\":\"" + TOKEN + "\","
-                    + "\"title\":\"" + escape(title) + "\","
-                    + "\"content\":\"" + escape(content) + "\","
-                    + "\"topic\":\"" + (TOPIC == null ? "" : TOPIC) + "\""
-                    + "}";
+            HttpPost post = new HttpPost("https://www.pushplus.plus/send");
+            post.setHeader("Content-Type", "application/json;charset=utf-8");
+            Map<String, Object> body = new HashMap<>();
+            body.put("token", token);
+            body.put("title", title);
+            body.put("content", content);
+            if (topic != null && !topic.isBlank()) body.put("topic", topic);
 
-            post.setEntity(EntityBuilder.create()
-                    .setText(json)
-                    .setContentType(ContentType.APPLICATION_JSON)
-                    .build());
-
-            var response = client.execute(post);
-            System.out.println("[PushPlus] 响应: " + EntityUtils.toString(response.getEntity()));
+            String json = new ObjectMapper().writeValueAsString(body);
+            post.setEntity(new StringEntity(json, ContentType.parse("utf-8")));
+            var resp = client.execute(post);
+            String respBody = EntityUtils.toString(resp.getEntity());
+            System.out.println("[PushPlus] 响应: " + respBody);
+        } catch (Exception e) {
+            System.out.println("[ERROR] PushPlus 调用异常：" + e.getMessage());
         }
     }
-
-    private static String escape(String s) {
-        return s.replace("\"", "\\\"").replace("\n", "\\n");
-    }
 }
+
