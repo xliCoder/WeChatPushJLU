@@ -2,11 +2,9 @@ name: JLU Monitor (智谱AI + PushPlus)
 
 on:
   schedule:
-    # 北京时间 08:00 (UTC 0:00)
-    - cron: '0 0 * * *'
-    # 北京时间 18:00 (UTC 10:00)
-    - cron: '0 10 * * *'
-  workflow_dispatch:  # 可手动触发运行
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
 
 jobs:
   run:
